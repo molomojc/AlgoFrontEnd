@@ -8,6 +8,8 @@ import Trades from './pages/Trades'
 import Profile from './pages/Profile'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import ChartPage from './pages/ChartPage'
+import HomePage from './pages/HomePage'
 
 function App() {
   const { user, loading } = useAuth()
@@ -24,12 +26,13 @@ function App() {
     <Router>
       <Toaster position="top-right" />
       <Routes>
-        <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-        <Route path="/signup" element={!user ? <SignUp /> : <Navigate to="/" />} />
-        
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp /> } />
+        <Route path="/chart" element={<ChartPage />} />
         <Route element={<ProtectedRoute user={user} />}>
           <Route element={<Layout />}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/Dashboard" element={<Dashboard />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/profile" element={<Profile />} />
           </Route>

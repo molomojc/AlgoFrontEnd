@@ -1,24 +1,99 @@
 @import "tailwindcss";
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-gray-50;
+    background-color: var(--color-gray-50);
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+    background-color: var(--color-white);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-gray-200);
+    padding: var(--spacing-6);
+    box-shadow: var(--shadow-sm);
   }
   
   .input {
-    @apply mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500;
+    margin-top: var(--spacing-1);
+    display: block;
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-gray-300);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .input:focus {
+    border-color: var(--color-primary-500);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    --ring-color: var(--color-primary-500);
   }
   
   .btn-primary {
-    @px-4 @py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+    padding-top: var(--spacing-2);
+    padding-bottom: var(--spacing-2);
+    background-color: var(--color-primary-600);
+    color: var(--color-white);
+    border-radius: var(--radius-md);
   }
+  
+  .btn-primary:hover {
+    background-color: var(--color-primary-700);
+  }
+  
+  .btn-primary:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    --ring-color: var(--color-primary-500);
+    --ring-offset-width: 2px;
+  }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-slide-in {
+  animation: slide-in 0.8s ease-out forwards;
+}
+
+.animate-ticker {
+  animation: ticker 30s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
 }
