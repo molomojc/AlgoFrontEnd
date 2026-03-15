@@ -28,7 +28,7 @@ export default function Profile() {
 
   const loadProfile = async () => {
     try {
-      const data = await db.getUserProfile(user.id)
+      const data = await db.getUserProfile('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
       if (data) {
         setProfile(data)
       }
@@ -39,7 +39,7 @@ export default function Profile() {
 
   const loadSettings = async () => {
     try {
-      const data = await db.getUserSettings(user.id)
+      const data = await db.getUserSettings('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
       if (data) {
         setSettings(data)
       }
@@ -67,7 +67,7 @@ export default function Profile() {
     e.preventDefault()
     setLoading(true)
     try {
-      await db.updateUserProfile(user.id, profile)
+      await db.updateUserProfile('d6b06acd-553b-45f7-af1e-07b9fd6fe4df', profile)
       toast.success('Profile updated successfully')
     } catch (error) {
       toast.error('Failed to update profile')
@@ -80,7 +80,7 @@ export default function Profile() {
     e.preventDefault()
     setLoading(true)
     try {
-      await db.updateUserSettings(user.id, settings)
+      await db.updateUserSettings('d6b06acd-553b-45f7-af1e-07b9fd6fe4df', settings)
       toast.success('Settings updated successfully')
     } catch (error) {
       toast.error('Failed to update settings')

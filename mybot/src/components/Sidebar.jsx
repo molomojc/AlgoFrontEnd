@@ -7,9 +7,10 @@ import {
 } from '@heroicons/react/24/outline'
 
 const navigation = [
-  { name: 'Home', href: '/', icon: HomeIcon },
+  { name: 'Home', href: '/dashboard', icon: HomeIcon },
   { name: 'Trades', href: '/trades', icon: CurrencyDollarIcon },
   { name: 'Profile', href: '/profile', icon: UserIcon },
+  { name: 'Trading', href: '/trading', icon: ChartBarIcon },
 ]
 
 export default function Sidebar() {

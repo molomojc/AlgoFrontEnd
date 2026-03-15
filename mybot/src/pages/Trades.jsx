@@ -36,7 +36,7 @@ export default function Trades() {
 
   const loadTrades = async () => {
     try {
-      const data = await db.getTradeRequests(user.id)
+      const data = await db.getTradeRequests('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
       setTrades(data)
     } catch (error) {
       toast.error('Failed to load trades')
@@ -47,7 +47,7 @@ export default function Trades() {
 
   const loadUserSettings = async () => {
     try {
-      const settings = await db.getUserSettings(user.id)
+      const settings = await db.getUserSettings('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
       if (settings) {
         setUserSettings(settings)
         setFormData(prev => ({

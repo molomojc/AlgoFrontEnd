@@ -129,9 +129,9 @@ export const db = {
   // User Settings
   async getUserSettings(userId) {
     const { data, error } = await supabase
-      .from('user_settings')
+      .from('user_profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .single()
     if (error && error.code !== 'PGRST116') throw error
     return data
@@ -139,9 +139,9 @@ export const db = {
 
   async updateUserSettings(userId, updates) {
     const { data, error } = await supabase
-      .from('user_settings')
+      .from('user_profiles')
       .update(updates)
-      .eq('user_id', userId)
+      .eq('id', userId)
       .select()
       .single()
     if (error) throw error
@@ -191,23 +191,41 @@ export const db = {
 
   // Bot Status
   async getBotStatus(userId) {
+
+    // 1️⃣ Check if bot exists
     const { data, error } = await supabase
       .from('bots')
-      .select(`
-        *,
-        bot_status(*)
-      `)
+      .select('*')
       .eq('user_id', userId)
-      .single()
+      .maybeSingle()
+  
     if (error) throw error
-    return data
+  
+    // 2️⃣ If bot exists → return it
+    if (data) return data
+  
+    // 3️⃣ If bot does NOT exist → create it
+    const { data: newBot, error: insertError } = await supabase
+      .from('bots')
+      .insert([
+        {
+          user_id: userId,
+          status: 'stopped'
+        }
+      ])
+      .select()
+      .single()
+  
+    if (insertError) throw insertError
+  
+    return newBot
   },
 
-  async updateBotStatus(botId, status) {
+  async updateBotStatus(userId, status) {
     const { data, error } = await supabase
       .from('bots')
       .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', botId)
+      .eq('user_id', userId)
       .select()
       .single()
     if (error) throw error

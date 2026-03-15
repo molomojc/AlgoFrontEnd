@@ -319,7 +319,7 @@ const HeroSection = () => {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
           <Link
-            to="/signup"
+            to="/Dashboard"
             className="group px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-blue-500/25 flex items-center justify-center"
           >
             Start Free Trial

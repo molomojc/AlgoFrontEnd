@@ -10,6 +10,7 @@ import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import ChartPage from './pages/ChartPage'
 import HomePage from './pages/HomePage'
+import Trading from './pages/Trading'
 
 function App() {
   const { user, loading } = useAuth()
@@ -30,11 +31,13 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp /> } />
         <Route path="/chart" element={<ChartPage />} />
+        <Route path="/trading" element={<Trading />} />
         <Route element={<ProtectedRoute user={user} />}>
           <Route element={<Layout />}>
             <Route path="/Dashboard" element={<Dashboard />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/profile" element={<Profile />} />
+           
           </Route>
         </Route>
       </Routes>
