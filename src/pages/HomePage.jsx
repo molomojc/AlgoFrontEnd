@@ -327,7 +327,7 @@ const HeroSection = () => {
           </Link>
 
           <Link
-            to="/demo"
+            to="/chart"
             className="group px-8 py-4 bg-gray-800/70 backdrop-blur-sm text-white rounded-lg font-semibold text-lg hover:bg-gray-700/70 border border-gray-600 transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
           >
             <PlayIcon className="mr-2 h-5 w-5" />
