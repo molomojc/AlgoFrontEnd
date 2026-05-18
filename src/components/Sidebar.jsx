@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Trades', href: '/trades', icon: CurrencyDollarIcon },
   { name: 'Profile', href: '/profile', icon: UserIcon },
   { name: 'Trading', href: '/trading', icon: ChartBarIcon },
+  { name: 'Calculator', href: '/calculator', icon: ChartBarIcon },
 ]
 
 export default function Sidebar() {
