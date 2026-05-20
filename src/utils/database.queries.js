@@ -277,5 +277,121 @@ export const db = {
       .single()
     if (error) throw error
     return data
+  },
+
+  // Add to your existing db object in supabase.js
+
+// Forex Calculator Configurations
+async getForexConfigs(userId) {
+  const { data, error } = await supabase
+    .from('forex_calculator_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data;
+},
+
+async getActiveForexConfig(userId) {
+  const { data, error } = await supabase
+    .from('forex_calculator_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .maybeSingle(); // Returns null if no active config
+  
+  if (error) throw error;
+  return data;
+},
+
+async createForexConfig(userId, configData) {
+  const { data, error } = await supabase
+    .from('forex_calculator_configs')
+    .insert([{ 
+      user_id: userId,
+      ...configData 
+    }])
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+},
+
+async updateForexConfig(configId, updates) {
+  const { data, error } = await supabase
+    .from('forex_calculator_configs')
+    .update(updates)
+    .eq('id', configId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+},
+
+async deleteForexConfig(configId) {
+  const { error } = await supabase
+    .from('forex_calculator_configs')
+    .delete()
+    .eq('id', configId);
+  
+  if (error) throw error;
+  return true;
+},
+
+async setActiveForexConfig(userId, configId) {
+  // First, deactivate all configs for this user
+  const { error: deactivateError } = await supabase
+    .from('forex_calculator_configs')
+    .update({ is_active: false })
+    .eq('user_id', userId);
+  
+  if (deactivateError) throw deactivateError;
+  
+  // Then activate the selected config
+  const { data, error } = await supabase
+    .from('forex_calculator_configs')
+    .update({ is_active: true })
+    .eq('id', configId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+  
+  if (error) throw error;
+  return data;
+},
+
+// Get bot settings from active config
+async getBotSettings(userId) {
+  const activeConfig = await this.getActiveForexConfig(userId);
+  
+  if (!activeConfig) {
+    // Return default settings if no active config
+    return {
+      instrument_type: 'forex',
+      instrument: 'XAUUSD (Gold) — $1/pip/0.01lot',
+      instrument_multiplier: 100,
+      balance: 10,
+      lot_size: 0.01,
+      stop_loss_pips: 25,
+      reward_risk_ratio: 1.5,
+      trail_pips: 10,
+      use_trailing_stop: true,
+      auto_risk_management: true,
+      max_risk_percentage: 2.0,
+      partial_tp_enabled: true,
+      tp1_percentage: 50,
+      tp2_percentage: 50
+    };
   }
+  
+  return activeConfig;
+}
+
+
+
+
+
 }
