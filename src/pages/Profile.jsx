@@ -5,7 +5,9 @@ import toast from 'react-hot-toast'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
+  const userId = user?.id
+  console.log('User ID:', userId)
   const [loading, setLoading] = useState(false)
   const [profile, setProfile] = useState({
     full_name: '',
@@ -22,13 +24,17 @@ export default function Profile() {
   })
 
   useEffect(() => {
+    if (authLoading) return
+    if (!userId) return
+
     loadProfile()
     loadSettings()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, userId])
 
   const loadProfile = async () => {
     try {
-      const data = await db.getUserProfile('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
+      const data = await db.getUserProfile(userId)
       if (data) {
         setProfile(data)
       }
@@ -39,7 +45,7 @@ export default function Profile() {
 
   const loadSettings = async () => {
     try {
-      const data = await db.getUserSettings('d6b06acd-553b-45f7-af1e-07b9fd6fe4df')
+      const data = await db.getUserSettings(userId)
       if (data) {
         setSettings(data)
       }
@@ -67,7 +73,7 @@ export default function Profile() {
     e.preventDefault()
     setLoading(true)
     try {
-      await db.updateUserProfile('d6b06acd-553b-45f7-af1e-07b9fd6fe4df', profile)
+      await db.updateUserProfile(userId, profile)
       toast.success('Profile updated successfully')
     } catch (error) {
       toast.error('Failed to update profile')
@@ -80,7 +86,7 @@ export default function Profile() {
     e.preventDefault()
     setLoading(true)
     try {
-      await db.updateUserSettings('d6b06acd-553b-45f7-af1e-07b9fd6fe4df', settings)
+      await db.updateUserSettings(userId, settings)
       toast.success('Settings updated successfully')
     } catch (error) {
       toast.error('Failed to update settings')

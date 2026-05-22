@@ -106,20 +106,21 @@ CREATE TRIGGER on_auth_user_created
 export const db = {
   // User Profiles
   async getUserProfile(userId) {
+    if (!userId) return null
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
     if (error) throw error
     return data
   },
 
   async updateUserProfile(userId, updates) {
+    if (!userId) throw new Error('Missing userId')
     const { data, error } = await supabase
       .from('user_profiles')
-      .update(updates)
-      .eq('id', userId)
+      .upsert({ id: userId, ...updates }, { onConflict: 'id' })
       .select()
       .single()
     if (error) throw error
@@ -128,20 +129,22 @@ export const db = {
 
   // User Settings
   async getUserSettings(userId) {
+    if (!userId) return null
     const { data, error } = await supabase
-      .from('user_profiles')
+      .from('user_settings')
       .select('*')
-      .eq('id', userId)
-      .single()
-    if (error && error.code !== 'PGRST116') throw error
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (error) throw error
     return data
   },
 
   async updateUserSettings(userId, updates) {
+    if (!userId) throw new Error('Missing userId')
     const { data, error } = await supabase
-      .from('user_profiles')
-      .update(updates)
-      .eq('id', userId)
+      .from('user_settings')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
       .select()
       .single()
     if (error) throw error
