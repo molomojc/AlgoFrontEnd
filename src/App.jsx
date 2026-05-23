@@ -32,7 +32,6 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp /> } />
         <Route path="/chart" element={<ChartPage />} />
-        <Route path="/trading" element={<Trading />} />
        
         <Route element={<ProtectedRoute user={user} />}>
           <Route element={<Layout />}>
@@ -40,6 +39,7 @@ function App() {
             <Route path="/trades" element={<Trades />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/calculator" element={<ForexExitCalculator />} />
+            <Route path="/trading" element={<Trading />} />
           </Route>
         </Route>
       </Routes>
