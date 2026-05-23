@@ -45,6 +45,13 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [news, setNews] = useState([])
   const [loading, setLoading] = useState(true)
+  const [recentTrades, setRecentTrades] = useState([])
+  const [recentTradesLoading, setRecentTradesLoading] = useState(true)
+  const [todayTradeStats, setTodayTradeStats] = useState({
+    pnl: 0,
+    winRate: 0,
+    trades: 0
+  })
   const [botStatus, setBotStatus] = useState('stopped')
   const [botMetrics, setBotMetrics] = useState({
     tradesToday: 0,
@@ -82,6 +89,8 @@ export default function Dashboard() {
     loadNews()
     loadBotStatus()
     loadAccountSnapshot()
+    loadRecentTrades()
+    loadTodayTradeStats()
     
     // Subscribe to real-time updates for account snapshots
     const subscription = supabase
@@ -101,6 +110,23 @@ export default function Dashboard() {
         }
       )
       .subscribe()
+
+    const tradeLogsSubscription = supabase
+      .channel('trade_logs_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trade_logs',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          loadRecentTrades()
+          loadTodayTradeStats()
+        }
+      )
+      .subscribe()
   
     const interval = setInterval(() => {
       refreshAccountData()
@@ -109,9 +135,94 @@ export default function Dashboard() {
     return () => {
       clearInterval(interval)
       subscription.unsubscribe()
+      tradeLogsSubscription.unsubscribe()
     }
   
   }, [user])
+
+  const loadRecentTrades = async () => {
+    setRecentTradesLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('trade_logs')
+        .select('id, mt5_ticket, symbol, side, volume, open_price, stop_loss, take_profit, close_price, profit, status, comment, close_reason, opened_at, closed_at, created_at')
+        .eq('user_id', user.id)
+        .order('opened_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) throw error
+      setRecentTrades(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Failed to load recent trades:', error)
+      toast.error('Failed to load recent trades')
+      setRecentTrades([])
+    } finally {
+      setRecentTradesLoading(false)
+    }
+  }
+
+  const loadTodayTradeStats = async () => {
+    try {
+      const start = new Date()
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(start)
+      end.setDate(end.getDate() + 1)
+
+      const { data, error } = await supabase
+        .from('trade_logs')
+        .select('profit, status, closed_at')
+        .eq('user_id', user.id)
+        .gte('closed_at', start.toISOString())
+        .lt('closed_at', end.toISOString())
+
+      if (error) throw error
+
+      const rows = Array.isArray(data) ? data : []
+      const closedRows = rows.filter((r) => (r?.status || '').toUpperCase() === 'CLOSED')
+
+      const pnl = closedRows.reduce((sum, row) => sum + (Number(row.profit) || 0), 0)
+      const wins = closedRows.filter((row) => (Number(row.profit) || 0) > 0).length
+      const trades = closedRows.length
+      const winRate = trades > 0 ? (wins / trades) * 100 : 0
+
+      setTodayTradeStats({ pnl, winRate, trades })
+    } catch (error) {
+      console.error('Failed to load today trade stats:', error)
+      setTodayTradeStats({ pnl: 0, winRate: 0, trades: 0 })
+    }
+  }
+
+  const getTradeStatusColor = (status) => {
+    switch ((status || '').toUpperCase()) {
+      case 'CLOSED':
+        return 'bg-gray-100 text-gray-800'
+      case 'OPEN':
+        return 'bg-blue-100 text-blue-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const formatTradeTime = (trade) => {
+    const timestamp = trade?.opened_at || trade?.created_at
+    if (!timestamp) return '--'
+    try {
+      return format(new Date(timestamp), 'HH:mm')
+    } catch {
+      return '--'
+    }
+  }
+
+  const getProfitMeta = (profit) => {
+    if (profit === null || profit === undefined || Number.isNaN(Number(profit))) return null
+    const numericProfit = Number(profit)
+    return {
+      value: numericProfit,
+      className: numericProfit > 0 ? 'text-green-700' : numericProfit < 0 ? 'text-red-700' : 'text-gray-700',
+      sign: numericProfit > 0 ? '+' : ''
+    }
+  }
 
   const updateAccountDataFromSnapshot = (snapshot) => {
     setAccountData({
@@ -290,11 +401,11 @@ export default function Dashboard() {
     },
     {
       name: "Today's P&L",
-      value: `$${accountData.todayPnL.toFixed(2)}`,
+      value: `$${todayTradeStats.pnl.toFixed(2)}`,
       icon: ArrowTrendingUpIcon,
-      change: `${(accountData.winRate || 0).toFixed(1)}% win rate`,
-      changeType: accountData.todayPnL >= 0 ? 'positive' : 'negative',
-      subtext: `${accountData.tradesToday || 0} trades`
+      change: `${(todayTradeStats.winRate || 0).toFixed(1)}% win rate`,
+      changeType: todayTradeStats.pnl >= 0 ? 'positive' : 'negative',
+      subtext: `${todayTradeStats.trades || 0} trades`
     }
   ]
 
@@ -495,35 +606,51 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Signals */}
+        {/* Recent Trades */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Recent Signals</h2>
-            <SparklesIcon className="h-5 w-5 text-yellow-500" />
+            <h2 className="text-lg font-medium text-gray-900">Recent Trades</h2>
+            <SparklesIcon className="h-5 w-5 text-gray-400" />
           </div>
           <div className="space-y-4">
-            {signalHistory.slice(0, 4).map((signal) => (
-              <div key={signal.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            {recentTrades.slice(0, 4).map((trade) => {
+              const profitMeta = getProfitMeta(trade.profit)
+              return (
+              <div key={trade.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-900">{signal.symbol}</span>
+                    <span className="font-medium text-gray-900">{trade.symbol || '--'}</span>
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      signal.direction === 'BUY' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      (trade.side || '').toUpperCase() === 'BUY' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {signal.direction}
+                      {(trade.side || '--').toUpperCase()}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTradeStatusColor(trade.status)}`}>
+                      {(trade.status || 'OPEN').toUpperCase()}
                     </span>
                   </div>
                   <div className="flex items-center mt-1">
-                    <span className="text-xs text-gray-500">{signal.time}</span>
+                    <span className="text-xs text-gray-500">{formatTradeTime(trade)}</span>
                     <span className="mx-2 text-gray-300">•</span>
-                    <span className="text-xs font-medium text-gray-700">{signal.confidence}% confidence</span>
+                    <span className="text-xs font-medium text-gray-700">Ticket #{trade.mt5_ticket}</span>
+                    {profitMeta && (
+                      <>
+                        <span className="mx-2 text-gray-300">â€¢</span>
+                        <span className={`text-xs font-semibold ${profitMeta.className}`}>
+                          {profitMeta.sign}{profitMeta.value.toFixed(2)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
-                {signal.result === 'win' && <CheckCircleIcon className="h-5 w-5 text-green-500" />}
-                {signal.result === 'loss' && <XCircleIcon className="h-5 w-5 text-red-500" />}
-                {signal.result === 'pending' && <ArrowPathIcon className="h-5 w-5 text-yellow-500 animate-spin" />}
+                {(trade.status || '').toUpperCase() === 'CLOSED' ? (
+                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                ) : (
+                  <ArrowPathIcon className="h-5 w-5 text-yellow-500 animate-spin" />
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
           <button className="mt-4 w-full text-sm text-primary-600 hover:text-primary-700 font-medium">
             View All Signals →
