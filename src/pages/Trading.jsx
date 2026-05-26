@@ -78,6 +78,7 @@ const TechnicalPanel = ({
   isSavingAutoTradeSettings,
 }) => {
   const [autoEnabled, setAutoEnabled] = useState(false);
+  const [Target_amount, setTargetAmount] = useState(50);
   const [watchlist, setWatchlist] = useState(["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"]);
   const [minConfidence, setMinConfidence] = useState(75);
   const [maxPositions, setMaxPositions] = useState(5);
@@ -95,6 +96,7 @@ const TechnicalPanel = ({
     if (Array.isArray(autoTradeSettings.watchlist) && autoTradeSettings.watchlist.length > 0) {
       setWatchlist(autoTradeSettings.watchlist);
     }
+    if (typeof autoTradeSettings.target_amount === "number") setTargetAmount(autoTradeSettings.target_amount);
     if (typeof autoTradeSettings.min_confidence === "number") setMinConfidence(autoTradeSettings.min_confidence);
     if (typeof autoTradeSettings.max_positions === "number") setMaxPositions(autoTradeSettings.max_positions);
     if (typeof autoTradeSettings.risk_per_trade === "number") setRiskPerTrade(autoTradeSettings.risk_per_trade);
@@ -144,11 +146,13 @@ const TechnicalPanel = ({
       min_confidence: minConfidence,
       max_positions: maxPositions,
       risk_per_trade: riskPerTrade,
+      target_amount: Target_amount,
       scan_interval_minutes: scanIntervalMinutes,
       enable_ai_position_management: enableAiPositionManagement,
       ai_position_management_interval: aiPositionManagementInterval,
       ai_min_confidence_to_close: aiMinConfidenceToClose,
       ai_check_frequency_seconds: aiCheckFrequencySeconds,
+
     });
   };
 
@@ -246,6 +250,19 @@ const TechnicalPanel = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 />
               </div>
+            
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Target Amount</label>
+                <input
+                  type="number"
+                  value={Target_amount}
+                  onChange={(e) => setTargetAmount(parseInt(e.target.value || "1", 10))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+              </div>
+
+
+
             </div>
           </div>
         </div>
@@ -733,6 +750,7 @@ export default function Trading() {
             enabled: payload.enabled,
             watchlist: payload.watchlist,
             min_confidence: payload.min_confidence,
+            target_today: payload.target_amount,
             max_positions: payload.max_positions,
             risk_per_trade: payload.risk_per_trade,
             scan_interval_minutes: payload.scan_interval_minutes,
