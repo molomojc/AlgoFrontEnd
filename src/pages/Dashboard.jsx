@@ -21,14 +21,16 @@ import {
   RocketLaunchIcon,
   FlagIcon,
   ExclamationTriangleIcon,
-  ShieldExclamationIcon
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline'
 import { PlayIcon as PlayIconSolid } from '@heroicons/react/24/solid'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
+import Chart from '../components/Chart'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const [activeSymbol, setActiveSymbol] = useState('XAUUSD')
   const [news, setNews] = useState([])
   const [loading, setLoading] = useState(true)
   const [recentTrades, setRecentTrades] = useState([])
@@ -1273,23 +1275,27 @@ export default function Dashboard() {
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Market Overview Card */}
-        <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-6">
+        <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-7 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-900">Market Overview</h2>
             <div className="flex items-center space-x-2">
-              <button className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">XAUUSD</button>
-              <button className="text-xs px-2 py-1 hover:bg-gray-100 text-gray-600 rounded">EURUSD</button>
-              <button className="text-xs px-2 py-1 hover:bg-gray-100 text-gray-600 rounded">BTCUSD</button>
+              {['XAUUSD', 'EURUSD', 'BTCUSD'].map((sym) => (
+                <button
+                  key={sym}
+                  onClick={() => setActiveSymbol(sym)}
+                  className={`text-xs px-2.5 py-1.5 font-semibold rounded-lg transition-all ${
+                    activeSymbol === sym
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {sym}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="h-[400px] bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <ChartBarIcon className="mx-auto h-12 w-12 text-gray-500" />
-              <p className="mt-2 text-sm text-gray-400">TradingView Chart Integration Coming Soon</p>
-              <button className="mt-4 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">
-                Configure Chart
-              </button>
-            </div>
+          <div className="h-[520px] border border-gray-200 rounded-xl overflow-hidden bg-slate-50 relative flex-1">
+            <Chart symbol={activeSymbol} theme="light" height="100%" />
           </div>
         </div>
 
