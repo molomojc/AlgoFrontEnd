@@ -35,11 +35,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [recentTrades, setRecentTrades] = useState([])
   const [recentTradesLoading, setRecentTradesLoading] = useState(true)
-  const [todayTradeStats, setTodayTradeStats] = useState({
-    pnl: 0,
-    winRate: 0,
-    trades: 0
-  })
+  const [showTradesModal, setShowTradesModal] = useState(false)
+  const [tradesModalFilter, setTradesModalFilter] = useState('all') // all | wins | losses
+  const [allTrades, setAllTrades] = useState([])
+  const [allTradesLoading, setAllTradesLoading] = useState(false)
   const [botStatus, setBotStatus] = useState('stopped')
   const [botMetrics, setBotMetrics] = useState({
     tradesToday: 0,
@@ -94,7 +93,6 @@ export default function Dashboard() {
     loadBotStatus()
     loadAccountSnapshot()
     loadRecentTrades()
-    loadTodayTradeStats()
     loadTradingLimits()
 
     const subscription = supabase
@@ -127,7 +125,7 @@ export default function Dashboard() {
         },
         () => {
           loadRecentTrades()
-          loadTodayTradeStats()
+          if (showTradesModal) loadAllTrades()
         }
       )
       .subscribe()
@@ -189,32 +187,34 @@ export default function Dashboard() {
 
   }, [user])
 
-  // Check for profit target reached
-  useEffect(() => {
-    if (!user?.id) return
-    if (!tradingLimits.target_today || tradingLimits.target_today <= 0) return
-    if (tradingLimits.target_reached) return
+  const loadAllTrades = async () => {
+    setAllTradesLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('trade_logs')
+        .select('id, mt5_ticket, symbol, side, volume, open_price, stop_loss, take_profit, close_price, profit, status, comment, close_reason, opened_at, closed_at, created_at')
+        .eq('user_id', user.id)
+        .order('opened_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(250)
 
-    const hasReachedTarget = todayTradeStats.pnl >= tradingLimits.target_today
-
-    if (hasReachedTarget && !tradingLimits.target_reached) {
-      markTargetReached()
+      if (error) throw error
+      setAllTrades(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Failed to load all trades:', error)
+      toast.error('Failed to load trades')
+      setAllTrades([])
+    } finally {
+      setAllTradesLoading(false)
     }
-  }, [user?.id, todayTradeStats.pnl, tradingLimits.target_today, tradingLimits.target_reached])
+  }
 
-  // Check for loss limit reached
-  useEffect(() => {
-    if (!user?.id) return
-    if (!tradingLimits.stop_trading_on_loss) return
-    if (tradingLimits.loss_limit_reached) return
-    if (!tradingLimits.max_daily_loss || tradingLimits.max_daily_loss <= 0) return
-    
-    const hasReachedLossLimit = todayTradeStats.pnl <= -tradingLimits.max_daily_loss
-    
-    if (hasReachedLossLimit && !tradingLimits.loss_limit_reached) {
-      markLossLimitReached()
-    }
-  }, [user?.id, todayTradeStats.pnl, tradingLimits.max_daily_loss, tradingLimits.loss_limit_reached])
+  const getFilteredTrades = () => {
+    const trades = Array.isArray(allTrades) ? allTrades : []
+    if (tradesModalFilter === 'wins') return trades.filter((t) => (Number(t.profit) || 0) > 0)
+    if (tradesModalFilter === 'losses') return trades.filter((t) => (Number(t.profit) || 0) < 0)
+    return trades
+  }
 
   const loadRecentTrades = async () => {
     setRecentTradesLoading(true)
@@ -235,37 +235,6 @@ export default function Dashboard() {
       setRecentTrades([])
     } finally {
       setRecentTradesLoading(false)
-    }
-  }
-
-  const loadTodayTradeStats = async () => {
-    try {
-      const start = new Date()
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start)
-      end.setDate(end.getDate() + 1)
-
-      const { data, error } = await supabase
-        .from('trade_logs')
-        .select('profit, status, closed_at')
-        .eq('user_id', user.id)
-        .gte('closed_at', start.toISOString())
-        .lt('closed_at', end.toISOString())
-
-      if (error) throw error
-
-      const rows = Array.isArray(data) ? data : []
-      const closedRows = rows.filter((r) => (r?.status || '').toUpperCase() === 'CLOSED')
-
-      const pnl = closedRows.reduce((sum, row) => sum + (Number(row.profit) || 0), 0)
-      const wins = closedRows.filter((row) => (Number(row.profit) || 0) > 0).length
-      const trades = closedRows.length
-      const winRate = trades > 0 ? (wins / trades) * 100 : 0
-
-      setTodayTradeStats({ pnl, winRate, trades })
-    } catch (error) {
-      console.error('Failed to load today trade stats:', error)
-      setTodayTradeStats({ pnl: 0, winRate: 0, trades: 0 })
     }
   }
 
@@ -632,11 +601,11 @@ export default function Dashboard() {
   }
 
   const targetProgress = tradingLimits.target_today > 0
-    ? Math.min(100, Math.max(0, (todayTradeStats.pnl / tradingLimits.target_today) * 100))
+    ? Math.min(100, Math.max(0, (accountData.todayPnL / tradingLimits.target_today) * 100))
     : 0
 
-  const lossProgress = tradingLimits.max_daily_loss > 0 && todayTradeStats.pnl < 0
-    ? Math.min(100, Math.max(0, (Math.abs(todayTradeStats.pnl) / tradingLimits.max_daily_loss) * 100))
+  const lossProgress = tradingLimits.max_daily_loss > 0 && accountData.todayPnL < 0
+    ? Math.min(100, Math.max(0, (Math.abs(accountData.todayPnL) / tradingLimits.max_daily_loss) * 100))
     : 0
 
   const getTargetStatus = () => {
@@ -644,11 +613,11 @@ export default function Dashboard() {
     if (tradingLimits.loss_limit_reached) return 'loss-limit-reached'
     if (tradingLimits.target_reached) return 'reached'
     if (tradingLimits.target_today <= 0 && tradingLimits.max_daily_loss <= 0) return 'no-target'
-    if (todayTradeStats.pnl >= tradingLimits.target_today && tradingLimits.target_today > 0) return 'reached'
-    if (todayTradeStats.pnl <= -tradingLimits.max_daily_loss && tradingLimits.max_daily_loss > 0) return 'loss-limit-reached'
-    if (todayTradeStats.pnl > 0) return 'processing'
-    if (todayTradeStats.pnl === 0) return 'awaiting'
-    if (todayTradeStats.pnl < 0) return 'losing'
+    if (accountData.todayPnL >= tradingLimits.target_today && tradingLimits.target_today > 0) return 'reached'
+    if (accountData.todayPnL <= -tradingLimits.max_daily_loss && tradingLimits.max_daily_loss > 0) return 'loss-limit-reached'
+    if (accountData.todayPnL > 0) return 'processing'
+    if (accountData.todayPnL === 0) return 'awaiting'
+    if (accountData.todayPnL < 0) return 'losing'
     return 'processing'
   }
 
@@ -679,11 +648,11 @@ export default function Dashboard() {
     },
     {
       name: "Today's P&L",
-      value: `$${todayTradeStats.pnl.toFixed(2)}`,
+      value: `$${accountData.todayPnL.toFixed(2)}`,
       icon: ArrowTrendingUpIcon,
-      change: `${(todayTradeStats.winRate || 0).toFixed(1)}% win rate`,
-      changeType: todayTradeStats.pnl >= 0 ? 'positive' : 'negative',
-      subtext: `${todayTradeStats.trades || 0} trades`
+      change: `${(accountData.winRate || 0).toFixed(1)}% win rate`,
+      changeType: accountData.todayPnL >= 0 ? 'positive' : 'negative',
+      subtext: `${accountData.tradesToday || 0} trades`
     }
   ]
 
@@ -718,6 +687,114 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="absolute inset-0 bg-red-500 opacity-10 animate-pulse" />
+        </div>
+      )}
+
+      {/* All Trades Modal */}
+      {showTradesModal && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-gray-900/40"
+            onClick={() => setShowTradesModal(false)}
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl rounded-xl bg-white shadow-xl border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">All Trades</h3>
+                  <p className="text-sm text-gray-500">Filter and review your trade history.</p>
+                </div>
+                <button
+                  onClick={() => setShowTradesModal(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'wins', label: 'Wins' },
+                    { id: 'losses', label: 'Losses' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setTradesModalFilter(opt.id)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md ${
+                        tradesModalFilter === opt.id
+                          ? 'bg-primary-600 text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={loadAllTrades}
+                  className="inline-flex items-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="max-h-[65vh] overflow-auto border-t border-gray-200">
+                {allTradesLoading ? (
+                  <div className="flex justify-center py-10">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+                  </div>
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Symbol</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Side</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Ticket</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Profit</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Opened</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {getFilteredTrades().map((t) => {
+                        const profit = Number(t.profit)
+                        const profitClass =
+                          Number.isFinite(profit) ? (profit > 0 ? 'text-green-700' : profit < 0 ? 'text-red-700' : 'text-gray-700') : 'text-gray-500'
+                        return (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{t.symbol || '--'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{(t.side || '--').toUpperCase()}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getTradeStatusColor(t.status)}`}>
+                                {(t.status || 'OPEN').toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{t.mt5_ticket ?? '--'}</td>
+                            <td className={`px-4 py-3 text-sm text-right font-semibold ${profitClass}`}>
+                              {Number.isFinite(profit) ? `${profit > 0 ? '+' : ''}${profit.toFixed(2)}` : '--'}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right text-gray-600">
+                              {t.opened_at ? format(new Date(t.opened_at), 'yyyy-MM-dd HH:mm') : '--'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {!allTradesLoading && getFilteredTrades().length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                            No trades found for this filter.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1006,8 +1083,8 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-500">Goal: ${tradingLimits.target_today.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-bold ${todayTradeStats.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${todayTradeStats.pnl >= 0 ? '+' : ''}{todayTradeStats.pnl.toFixed(2)}
+                    <p className={`text-sm font-bold ${accountData.todayPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      ${accountData.todayPnL >= 0 ? '+' : ''}{accountData.todayPnL.toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500">{targetProgress.toFixed(0)}% complete</p>
                   </div>
@@ -1017,7 +1094,7 @@ export default function Dashboard() {
                     className={`h-full rounded-full transition-all duration-1000 ease-out ${
                       tradingLimits.target_reached
                         ? 'bg-gradient-to-r from-green-400 via-emerald-500 to-green-600 animate-pulse'
-                        : todayTradeStats.pnl > 0 
+                        : accountData.todayPnL > 0 
                           ? 'bg-gradient-to-r from-green-400 to-green-600'
                           : 'bg-gray-300'
                     }`}
@@ -1036,8 +1113,8 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-500">Max Loss: ${tradingLimits.max_daily_loss}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-sm font-bold ${todayTradeStats.pnl < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                      {todayTradeStats.pnl < 0 ? '-' : ''}${Math.abs(todayTradeStats.pnl).toFixed(2)} loss
+                    <p className={`text-sm font-bold ${accountData.todayPnL < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                      {accountData.todayPnL < 0 ? '-' : ''}${Math.abs(accountData.todayPnL).toFixed(2)} loss
                     </p>
                     <p className="text-xs text-gray-500">{lossProgress.toFixed(0)}% of limit</p>
                   </div>
@@ -1047,7 +1124,7 @@ export default function Dashboard() {
                     className={`h-full rounded-full transition-all duration-1000 ease-out ${
                       tradingLimits.loss_limit_reached
                         ? 'bg-gradient-to-r from-red-500 to-red-600 animate-pulse'
-                        : todayTradeStats.pnl < 0
+                        : accountData.todayPnL < 0
                           ? 'bg-gradient-to-r from-orange-400 to-red-500'
                           : 'bg-gray-300'
                     }`}
@@ -1062,8 +1139,8 @@ export default function Dashboard() {
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="rounded-lg bg-gray-50 p-4 border border-gray-100">
               <p className="text-xs uppercase tracking-wide text-gray-500">Today's P&L</p>
-              <p className={`mt-1 text-xl font-semibold ${todayTradeStats.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {todayTradeStats.pnl >= 0 ? '+' : ''}${todayTradeStats.pnl.toFixed(2)}
+              <p className={`mt-1 text-xl font-semibold ${accountData.todayPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {accountData.todayPnL >= 0 ? '+' : ''}${accountData.todayPnL.toFixed(2)}
               </p>
             </div>
 
@@ -1072,9 +1149,9 @@ export default function Dashboard() {
               <p className="mt-1 text-xl font-semibold text-gray-900">
                 ${tradingLimits.target_today.toFixed(2)}
               </p>
-              {tradingLimits.target_today > 0 && todayTradeStats.pnl < tradingLimits.target_today && (
+              {tradingLimits.target_today > 0 && accountData.todayPnL < tradingLimits.target_today && (
                 <p className="text-xs text-gray-500">
-                  Left: ${Math.max(0, tradingLimits.target_today - todayTradeStats.pnl).toFixed(2)}
+                  Left: ${Math.max(0, tradingLimits.target_today - accountData.todayPnL).toFixed(2)}
                 </p>
               )}
             </div>
@@ -1084,9 +1161,9 @@ export default function Dashboard() {
               <p className="mt-1 text-xl font-semibold text-gray-900">
                 ${tradingLimits.max_daily_loss}
               </p>
-              {tradingLimits.max_daily_loss > 0 && todayTradeStats.pnl < 0 && (
+              {tradingLimits.max_daily_loss > 0 && accountData.todayPnL < 0 && (
                 <p className="text-xs text-gray-500">
-                  Remaining: ${Math.max(0, tradingLimits.max_daily_loss - Math.abs(todayTradeStats.pnl)).toFixed(2)}
+                  Remaining: ${Math.max(0, tradingLimits.max_daily_loss - Math.abs(accountData.todayPnL)).toFixed(2)}
                 </p>
               )}
             </div>
@@ -1094,7 +1171,7 @@ export default function Dashboard() {
             <div className="rounded-lg bg-gray-50 p-4 border border-gray-100">
               <p className="text-xs uppercase tracking-wide text-gray-500">Trades Today</p>
               <p className="mt-1 text-xl font-semibold text-gray-900">
-                {todayTradeStats.trades}
+                {accountData.tradesToday || 0}
               </p>
             </div>
           </div>
@@ -1161,7 +1238,7 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-            ) : todayTradeStats.pnl < 0 && lossProgress > 50 && tradingLimits.max_daily_loss > 0 ? (
+            ) : accountData.todayPnL < 0 && lossProgress > 50 && tradingLimits.max_daily_loss > 0 ? (
               <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-yellow-50 p-4">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
@@ -1173,13 +1250,13 @@ export default function Dashboard() {
                       Warning: Approaching Daily Loss Limit
                     </p>
                     <p className="text-sm text-orange-700 mt-1">
-                      Current loss: ${Math.abs(todayTradeStats.pnl).toFixed(2)} of ${tradingLimits.max_daily_loss} limit
+                      Current loss: ${Math.abs(accountData.todayPnL).toFixed(2)} of ${tradingLimits.max_daily_loss} limit
                       ({lossProgress.toFixed(0)}% used)
                     </p>
                   </div>
                 </div>
               </div>
-            ) : tradingLimits.target_today > 0 && todayTradeStats.pnl > 0 && targetProgress > 50 ? (
+            ) : tradingLimits.target_today > 0 && accountData.todayPnL > 0 && targetProgress > 50 ? (
               <div className="rounded-xl border border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
                 <div className="flex items-center space-x-3">
                   <RocketLaunchIcon className="h-8 w-8 text-green-500 animate-bounce" />
@@ -1188,7 +1265,7 @@ export default function Dashboard() {
                       Getting close to your target!
                     </p>
                     <p className="text-sm text-green-700 mt-1">
-                      {targetProgress.toFixed(0)}% complete - just ${Math.max(0, tradingLimits.target_today - todayTradeStats.pnl).toFixed(2)} to go!
+                      {targetProgress.toFixed(0)}% complete - just ${Math.max(0, tradingLimits.target_today - accountData.todayPnL).toFixed(2)} to go!
                     </p>
                   </div>
                 </div>
@@ -1266,8 +1343,14 @@ export default function Dashboard() {
               })
             )}
           </div>
-          <button className="mt-4 w-full text-sm text-primary-600 hover:text-primary-700 font-medium">
-            View All Signals →
+          <button
+            onClick={() => {
+              setShowTradesModal(true)
+              loadAllTrades()
+            }}
+            className="mt-4 w-full text-sm text-primary-600 hover:text-primary-700 font-medium"
+          >
+            View All Trades →
           </button>
         </div>
       </div>
